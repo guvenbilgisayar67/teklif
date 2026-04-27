@@ -42,6 +42,52 @@ body{
   line-height:1.6;
 }
 
+/* Login */
+.login-screen{
+  position:fixed;inset:0;
+  background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  z-index:9999;
+}
+.login-box{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  padding:2.5rem 2rem;
+  width:340px;
+  text-align:center;
+}
+.login-logo{font-size:1.3rem;font-weight:600;color:var(--text);margin-bottom:4px}
+.login-logo span{color:var(--acc)}
+.login-sub{font-size:12px;color:var(--text3);margin-bottom:2rem}
+.login-box input{
+  width:100%;padding:10px 14px;
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--text);
+  font-size:1.1rem;font-family:'DM Mono',monospace;
+  letter-spacing:4px;text-align:center;
+  outline:none;transition:border-color 0.15s;margin-bottom:1rem;
+}
+.login-box input:focus{border-color:var(--border2)}
+.login-box input::placeholder{letter-spacing:1px;font-size:13px;font-family:'DM Sans',sans-serif}
+.login-btn{
+  width:100%;padding:10px;
+  background:var(--acc);color:#fff;
+  border:none;border-radius:var(--radius);
+  font-size:14px;font-weight:500;
+  font-family:'DM Sans',sans-serif;
+  cursor:pointer;transition:background 0.15s;
+}
+.login-btn:hover{background:#c73650}
+.login-err{
+  font-size:12px;color:var(--red);
+  margin-top:10px;min-height:18px;
+  opacity:0;transition:opacity 0.2s;
+}
+.login-err.show{opacity:1}
+.login-shake{animation:shake 0.4s ease}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+
 /* Layout */
 .shell{display:flex;min-height:100vh}
 .sidebar{
@@ -328,7 +374,19 @@ body{
 </head>
 <body>
 
-<div class="shell">
+<!-- Login Ekranı -->
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">Teklif<span>Robotu</span></div>
+    <div class="login-sub">Devam etmek için şifrenizi girin</div>
+    <input type="password" id="login-input" placeholder="Şifre" onkeydown="if(event.key==='Enter')doLogin()" />
+    <button class="login-btn" onclick="doLogin()">Giriş Yap</button>
+    <div class="login-err" id="login-err">Hatalı şifre, tekrar deneyin.</div>
+  </div>
+</div>
+
+<div id="main-shell" style="display:none">
+
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="logo">
@@ -508,7 +566,8 @@ body{
     </div>
 
   </main>
-</div>
+</div><!-- /main-shell -->
+</div><!-- /main-shell wrapper -->
 
 <div class="toast" id="toast"></div>
 
@@ -840,6 +899,34 @@ function toast(msg, type) {
   setTimeout(() => el.className = 'toast', 3000);
 }
 
+function doLogin() {
+  const val = document.getElementById('login-input').value;
+  const err = document.getElementById('login-err');
+  const box = document.querySelector('.login-box');
+  if (val === '369085') {
+    sessionStorage.setItem('teklif_auth', '1');
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('main-shell').style.display = 'block';
+    checkConn();
+  } else {
+    err.classList.add('show');
+    box.classList.remove('login-shake');
+    void box.offsetWidth;
+    box.classList.add('login-shake');
+    document.getElementById('login-input').value = '';
+    setTimeout(() => err.classList.remove('show'), 2500);
+  }
+}
+
+function checkAuth() {
+  if (sessionStorage.getItem('teklif_auth') === '1') {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('main-shell').style.display = 'block';
+    return true;
+  }
+  return false;
+}
+
 document.getElementById('t_vat').addEventListener('input', calcTotals);
 document.getElementById('t_currency').addEventListener('change', calcTotals);
 
@@ -847,7 +934,9 @@ loadSettings();
 initQuoteNo();
 initDates();
 addItem();
-checkConn();
+if (!checkAuth()) {
+  setTimeout(() => document.getElementById('login-input').focus(), 100);
+}
 </script>
 </body>
 </html>
