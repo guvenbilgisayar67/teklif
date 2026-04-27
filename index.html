@@ -486,6 +486,7 @@ body{
       </div>
 
       <div class="btn-row">
+        <button class="btn btn-ghost" onclick="newQuote()" id="new-btn" style="display:none">+ Yeni Teklif</button>
         <button class="btn btn-ghost" onclick="switchTab('preview')">Önizle</button>
         <button class="btn btn-primary" id="save-btn" onclick="saveQuote()">Kaydet & Oluştur</button>
       </div>
@@ -577,6 +578,7 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
 let items = [];
 let qNum = 1;
+let currentId = null; // düzenlenen teklif ID'si
 
 function sbH() {
   return {
@@ -775,21 +777,57 @@ async function saveQuote() {
     company_address: document.getElementById('s_address').value
   };
   try {
-    const r = await fetch(SB_URL + '/rest/v1/quotes', {
-      method: 'POST',
-      headers: { ...sbH(), 'Prefer': 'return=minimal' },
-      body: JSON.stringify(payload)
-    });
-    if (r.status === 201 || r.status === 200) {
-      toast('Teklif başarıyla kaydedildi!', 'ok');
-      qNum++;
-      initQuoteNo();
+    let r;
+    if (currentId) {
+      // Güncelle
+      r = await fetch(SB_URL + '/rest/v1/quotes?id=eq.' + currentId, {
+        method: 'PATCH',
+        headers: { ...sbH(), 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload)
+      });
+      if (r.status === 204 || r.status === 200) {
+        toast('Teklif güncellendi!', 'ok');
+      } else {
+        toast('Güncelleme hatası: ' + r.status, 'err');
+      }
     } else {
-      toast('Hata: ' + r.status, 'err');
+      // Yeni kayıt
+      r = await fetch(SB_URL + '/rest/v1/quotes', {
+        method: 'POST',
+        headers: { ...sbH(), 'Prefer': 'return=representation' },
+        body: JSON.stringify(payload)
+      });
+      if (r.status === 201 || r.status === 200) {
+        const data = await r.json();
+        currentId = data[0]?.id || null;
+        document.getElementById('new-btn').style.display = 'inline-flex';
+        document.getElementById('save-btn').textContent = 'Güncelle';
+        toast('Teklif başarıyla kaydedildi!', 'ok');
+        qNum++;
+      } else {
+        toast('Hata: ' + r.status, 'err');
+      }
     }
   } catch(e) { toast('Bağlantı hatası.', 'err'); }
   btn.disabled = false;
-  btn.textContent = 'Kaydet & Oluştur';
+  btn.innerHTML = currentId ? 'Güncelle' : 'Kaydet & Oluştur';
+}
+
+function newQuote() {
+  currentId = null;
+  document.getElementById('new-btn').style.display = 'none';
+  document.getElementById('save-btn').textContent = 'Kaydet & Oluştur';
+  // Formu temizle
+  ['c_name','c_contact','c_email','c_phone','c_tax','c_address','t_note'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('t_currency').value = 'TRY';
+  document.getElementById('t_vat').value = 20;
+  document.getElementById('t_status').value = 'taslak';
+  items = [];
+  renderItems();
+  addItem();
+  initQuoteNo();
+  initDates();
+  switchTab('form');
 }
 
 async function loadQuotes() {
@@ -812,7 +850,10 @@ async function loadQuotes() {
           <td style="color:var(--text2)">${q.quote_date || (q.created_at||'').split('T')[0] || '—'}</td>
           <td style="font-weight:600">${curSym(q)} ${fmt(q.total || 0)}</td>
           <td><span class="status-pill s-${q.status||'taslak'}">${q.status || 'taslak'}</span></td>
-          <td style="padding-right:1rem"><button class="btn btn-ghost" style="font-size:11px;padding:4px 12px" onclick="loadIntoForm(${q.id})">Yükle</button></td>
+          <td style="padding-right:1rem;display:flex;gap:6px;align-items:center">
+            <button class="btn btn-ghost" style="font-size:11px;padding:4px 12px" onclick="loadIntoForm(${q.id})">Düzenle</button>
+            <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteQuote(${q.id})">Sil</button>
+          </td>
         </tr>`).join('')}
       </tbody>
     </table>`;
@@ -826,6 +867,9 @@ async function loadIntoForm(id) {
     const r = await fetch(SB_URL + '/rest/v1/quotes?id=eq.' + id + '&select=*', { headers: sbH() });
     const data = await r.json();
     const q = data[0]; if (!q) return;
+    currentId = q.id;
+    document.getElementById('save-btn').textContent = 'Güncelle';
+    document.getElementById('new-btn').style.display = 'inline-flex';
     document.getElementById('c_name').value = q.customer_name || '';
     document.getElementById('c_contact').value = q.customer_contact || '';
     document.getElementById('c_email').value = q.customer_email || '';
@@ -844,8 +888,25 @@ async function loadIntoForm(id) {
     items = loadedItems.map(i => ({ ...i, id: Date.now() + Math.random() }));
     renderItems();
     switchTab('form');
-    toast('Teklif forma yüklendi.', 'ok');
+    toast('Teklif düzenlemeye açıldı.', 'ok');
   } catch(e) { toast('Yükleme hatası.', 'err'); }
+}
+
+async function deleteQuote(id) {
+  if (!confirm('Bu teklifi silmek istediğinize emin misiniz?')) return;
+  try {
+    const r = await fetch(SB_URL + '/rest/v1/quotes?id=eq.' + id, {
+      method: 'DELETE',
+      headers: sbH()
+    });
+    if (r.status === 204 || r.status === 200) {
+      toast('Teklif silindi.', 'ok');
+      if (currentId === id) { currentId = null; }
+      loadQuotes();
+    } else {
+      toast('Silme hatası: ' + r.status, 'err');
+    }
+  } catch(e) { toast('Bağlantı hatası.', 'err'); }
 }
 
 function saveSettings() {
