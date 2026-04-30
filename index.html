@@ -968,6 +968,7 @@ function doLogin() {
     sessionStorage.setItem('teklif_auth', '1');
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-shell').style.display = 'block';
+    loadSettings();
     checkConn();
   } else {
     err.classList.add('show');
@@ -983,6 +984,7 @@ function checkAuth() {
   if (sessionStorage.getItem('teklif_auth') === '1') {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-shell').style.display = 'block';
+    loadSettings();
     return true;
   }
   return false;
